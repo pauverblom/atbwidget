@@ -3,9 +3,11 @@ package com.example.atbwidget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
@@ -177,7 +179,7 @@ class AtbWidget : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.button, updateWidgetPendingIntent)
             appWidgetManager.updateAppWidget(appWidgetId, views)
-            appWidgetManager.updateAppWidget(appWidgetId, views)
+            println("INTENTS_UPDATED")
         }
     }
     override fun onAppWidgetOptionsChanged(
@@ -203,12 +205,31 @@ class AtbWidget : AppWidgetProvider() {
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_SCREEN_ON || intent.action == Intent.ACTION_USER_PRESENT) {
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val thisAppWidget = ComponentName(context.packageName, AtbWidget::class.java.name)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
+                onUpdate(context, appWidgetManager, appWidgetIds)
+                println("SCREEN_ON")
+            }
+        }
+    }
+
     override fun onEnabled(context: Context) {
-        // Enter relevant functionality for when the first widget is created
+        // Register the receiver when the widget is enabled
+        context.registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_SCREEN_ON),
+            Context.RECEIVER_EXPORTED)
+        context.registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_USER_PRESENT),
+            Context.RECEIVER_EXPORTED)
     }
 
     override fun onDisabled(context: Context) {
-        // Enter relevant functionality for when the last widget is disabled
+        // Unregister the receiver when the widget is disabled
+        context.unregisterReceiver(screenReceiver)
     }
 
 }
+
+
