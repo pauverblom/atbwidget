@@ -230,6 +230,13 @@ class AtbWidget : AppWidgetProvider() {
         context.unregisterReceiver(screenReceiver)
     }
 
+    override fun onRestored(context: Context, oldWidgetIds: IntArray?, newWidgetIds: IntArray?) {
+        super.onRestored(context, oldWidgetIds, newWidgetIds)
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val thisAppWidget = ComponentName(context.packageName, AtbWidget::class.java.name)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
+        onUpdate(context, appWidgetManager, appWidgetIds)
+    }
 }
 
 
