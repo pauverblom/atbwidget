@@ -76,7 +76,7 @@ class AtbWidget : AppWidgetProvider() {
 
         val remoteViews = RemoteViews(context.packageName, R.layout.atb_widget)
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        val atbWidget: ComponentName = ComponentName(context, AtbWidget::class.java)
+        val atbWidget = ComponentName(context, AtbWidget::class.java)
 
         remoteViews.setViewVisibility(R.id.progressBar2, View.VISIBLE)
 
