@@ -3,7 +3,7 @@
     android:description="@string/app_widget_description"
     android:initialKeyguardLayout="@layout/atb_widget"
     android:initialLayout="@layout/atb_widget"
-    android:minWidth="40dp"
+    android:minWidth="110dp"
     android:minHeight="40dp"
     android:previewLayout="@layout/atb_widget"
     android:resizeMode="horizontal"
