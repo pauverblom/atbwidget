@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.os.PowerManager
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -67,14 +68,16 @@ class AtbWidget : AppWidgetProvider() {
 
     fun updateAtbTransportTimesService(context: Context) {
 
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+
         val now = ZonedDateTime.now(ZoneOffset.UTC)
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")
         val formattedDate = now.format(formatter)
         val encodedDate = formattedDate.replace(":", "%3A")
 
-        var timeFromVoll = "-"
-        var timeFromGloshaugen = "-"
-        var timeFromHogskoleringen = "-"
+        var timeFromVoll: String
+        var timeFromGloshaugen: String
+        var timeFromHogskoleringen: String
 
         val remoteViews = RemoteViews(context.packageName, R.layout.atb_widget)
         val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -88,87 +91,132 @@ class AtbWidget : AppWidgetProvider() {
         appWidgetManager.updateAppWidget(atbWidget, remoteViews)
 
         val serviceJourneyIdToFind = "ATB:ServiceJourney:3"
+
         println("Encoded date: $encodedDate")
 
         val requestUrl = "https://atb-prod.api.mittatb.no/bff/v2/departures/realtime?quayIds=NSR%3AQuay%3A72401&quayIds=NSR%3AQuay%3A75707&quayIds=NSR%3AQuay%3A71940&limit=10&timeRange=100000&startTime=$encodedDate"
 
-        val request: Request = Request.Builder()
-            .url(requestUrl)
-            .addHeader("Content-Type", "application/json")
-            .addHeader("Host","atb-prod.api.mittatb.no")
-            .addHeader("atb-app-version", "1.58.1")
 
-            .build()
 
-        okhttpclient.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
+        if (powerManager.isPowerSaveMode() && !powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
+            remoteViews.setTextViewText(R.id.textView, "")
+            remoteViews.setTextViewText(R.id.textView2, "Please enable unrestricted battery usage")
+            remoteViews.setTextViewText(R.id.textView3, "")
+            remoteViews.setViewVisibility(R.id.progressBar2, View.INVISIBLE)
+            appWidgetManager.updateAppWidget(atbWidget, remoteViews)
+        }
 
-                remoteViews.setTextViewText(R.id.textView, e.message)
-                remoteViews.setTextViewTextSize(R.id.textView, 1, 13F)
-                remoteViews.setTextViewText(R.id.textView2, "")
-                remoteViews.setTextViewText(R.id.textView3, "")
-                remoteViews.setViewVisibility(R.id.progressBar2, View.INVISIBLE)
-                appWidgetManager.updateAppWidget(atbWidget, remoteViews)
-                e.printStackTrace()
-            }
+        else {
 
-            override fun onResponse(call: Call, response: Response) {
-                response.use {
-                    if (!response.isSuccessful){
-                        remoteViews.setTextViewText(R.id.textView, "Voll: Err ${response.code} ")
-                        remoteViews.setTextViewText(R.id.textView2, "Ghg: Err ${response.code} ")
-                        remoteViews.setTextViewText(R.id.textView3, "Høg: Err ${response.code} ")
-                        remoteViews.setViewVisibility(R.id.progressBar2, View.INVISIBLE)
-                        appWidgetManager.updateAppWidget(atbWidget, remoteViews)
-                        throw IOException("Unexpected code $response")
-                    }
+            val request: Request = Request.Builder()
+                .url(requestUrl)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Host", "atb-prod.api.mittatb.no")
+                .addHeader("atb-app-version", "1.58.1")
 
-                    val timetable = timetableJsonAdapter.fromJson(response.body!!.source())
+                .build()
 
-                    val firstBusFromVoll = timetable?.quay72401?.departures?.entries?.firstOrNull { it.value.serviceJourneyId.startsWith(serviceJourneyIdToFind) }
-                    val firstBusFromGloshaugen = timetable?.quay75707?.departures?.entries?.firstOrNull { it.value.serviceJourneyId.startsWith(serviceJourneyIdToFind) }
-                    val firstBusFromHogskoleringen = timetable?.quay71940?.departures?.entries?.firstOrNull { it.value.serviceJourneyId.startsWith(serviceJourneyIdToFind) }
+            okhttpclient.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
 
-                    if (firstBusFromVoll != null) {
-
-                        val expectedDepartureTimeFirstBusFromVoll = ZonedDateTime.parse(firstBusFromVoll.value.timeData.expectedDepartureTime)
-                        timeFromVoll = Duration.between(now, expectedDepartureTimeFirstBusFromVoll).toMinutes().toString()
-                        remoteViews.setTextViewText(R.id.textView, "Voll: $timeFromVoll min")
-
-                    }
-                    else {
-                        remoteViews.setTextViewText(R.id.textView, "Voll: N/A")
-                    }
-
-                    if (firstBusFromGloshaugen != null) {
-
-                        val expectedDepartureTimeFirstBusFromGloshaugen = ZonedDateTime.parse(firstBusFromGloshaugen.value.timeData.expectedDepartureTime)
-                        timeFromGloshaugen = Duration.between(now, expectedDepartureTimeFirstBusFromGloshaugen).toMinutes().toString()
-                        remoteViews.setTextViewText(R.id.textView2, "Ghg: $timeFromGloshaugen min")
-
-                    }
-                    else {
-                        remoteViews.setTextViewText(R.id.textView2, "Ghg: N/A")
-                    }
-
-                    if (firstBusFromHogskoleringen != null) {
-
-                        val expectedDepartureTimeFirstBusFromHogskoleringen = ZonedDateTime.parse(firstBusFromHogskoleringen.value.timeData.expectedDepartureTime)
-                        timeFromHogskoleringen = Duration.between(now, expectedDepartureTimeFirstBusFromHogskoleringen).toMinutes().toString()
-                        remoteViews.setTextViewText(R.id.textView3, "Høg: $timeFromHogskoleringen min")
-
-                    } else {
-                        remoteViews.setTextViewText(R.id.textView3, "Høg: N/A")
-                    }
-
+                    remoteViews.setTextViewText(R.id.textView, e.message)
+                    remoteViews.setTextViewTextSize(R.id.textView, 1, 13F)
+                    remoteViews.setTextViewText(R.id.textView2, "")
+                    remoteViews.setTextViewText(R.id.textView3, "")
                     remoteViews.setViewVisibility(R.id.progressBar2, View.INVISIBLE)
                     appWidgetManager.updateAppWidget(atbWidget, remoteViews)
-
+                    e.printStackTrace()
                 }
-            }
-        })
 
-    }
+                override fun onResponse(call: Call, response: Response) {
+                    response.use {
+                        if (!response.isSuccessful) {
+                            remoteViews.setTextViewText(
+                                R.id.textView,
+                                "Voll: Err ${response.code} "
+                            )
+                            remoteViews.setTextViewText(
+                                R.id.textView2,
+                                "Ghg: Err ${response.code} "
+                            )
+                            remoteViews.setTextViewText(
+                                R.id.textView3,
+                                "Høg: Err ${response.code} "
+                            )
+                            remoteViews.setViewVisibility(R.id.progressBar2, View.INVISIBLE)
+                            appWidgetManager.updateAppWidget(atbWidget, remoteViews)
+                            throw IOException("Unexpected code $response")
+                        }
+
+                        val timetable = timetableJsonAdapter.fromJson(response.body!!.source())
+
+                        val firstBusFromVoll =
+                            timetable?.quay72401?.departures?.entries?.firstOrNull {
+                                it.value.serviceJourneyId.startsWith(serviceJourneyIdToFind)
+                            }
+                        val firstBusFromGloshaugen =
+                            timetable?.quay75707?.departures?.entries?.firstOrNull {
+                                it.value.serviceJourneyId.startsWith(serviceJourneyIdToFind)
+                            }
+                        val firstBusFromHogskoleringen =
+                            timetable?.quay71940?.departures?.entries?.firstOrNull {
+                                it.value.serviceJourneyId.startsWith(serviceJourneyIdToFind)
+                            }
+
+                        if (firstBusFromVoll != null) {
+
+                            val expectedDepartureTimeFirstBusFromVoll =
+                                ZonedDateTime.parse(firstBusFromVoll.value.timeData.expectedDepartureTime)
+                            timeFromVoll =
+                                Duration.between(now, expectedDepartureTimeFirstBusFromVoll)
+                                    .toMinutes().toString()
+                            remoteViews.setTextViewText(R.id.textView, "Voll: $timeFromVoll min")
+
+                        } else {
+                            remoteViews.setTextViewText(R.id.textView, "Voll: N/A")
+                        }
+
+                        if (firstBusFromGloshaugen != null) {
+
+                            val expectedDepartureTimeFirstBusFromGloshaugen =
+                                ZonedDateTime.parse(firstBusFromGloshaugen.value.timeData.expectedDepartureTime)
+                            timeFromGloshaugen =
+                                Duration.between(now, expectedDepartureTimeFirstBusFromGloshaugen)
+                                    .toMinutes().toString()
+                            remoteViews.setTextViewText(
+                                R.id.textView2,
+                                "Ghg: $timeFromGloshaugen min"
+                            )
+
+                        } else {
+                            remoteViews.setTextViewText(R.id.textView2, "Ghg: N/A")
+                        }
+
+                        if (firstBusFromHogskoleringen != null) {
+
+                            val expectedDepartureTimeFirstBusFromHogskoleringen =
+                                ZonedDateTime.parse(firstBusFromHogskoleringen.value.timeData.expectedDepartureTime)
+                            timeFromHogskoleringen = Duration.between(
+                                now,
+                                expectedDepartureTimeFirstBusFromHogskoleringen
+                            ).toMinutes().toString()
+                            remoteViews.setTextViewText(
+                                R.id.textView3,
+                                "Høg: $timeFromHogskoleringen min"
+                            )
+
+                        } else {
+                            remoteViews.setTextViewText(R.id.textView3, "Høg: N/A")
+                        }
+
+                        remoteViews.setViewVisibility(R.id.progressBar2, View.INVISIBLE)
+                        appWidgetManager.updateAppWidget(atbWidget, remoteViews)
+
+                    }
+                }
+            })
+            }
+        }
 
     override fun onReceive(context: Context?, intent: Intent?) {
         super.onReceive(context, intent)
