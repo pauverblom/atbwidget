@@ -95,7 +95,9 @@ class AtbWidget : AppWidgetProvider() {
         val request: Request = Request.Builder()
             .url(requestUrl)
             .addHeader("Content-Type", "application/json")
+            .addHeader("Host","atb-prod.api.mittatb.no")
             .addHeader("atb-app-version", "1.58.1")
+
             .build()
 
         okhttpclient.newCall(request).enqueue(object : Callback {
