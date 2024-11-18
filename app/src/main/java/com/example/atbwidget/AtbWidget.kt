@@ -98,7 +98,7 @@ class AtbWidget : AppWidgetProvider() {
 
 
 
-        if (powerManager.isPowerSaveMode() && !powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
+        if (powerManager.isPowerSaveMode && !powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
             remoteViews.setTextViewText(R.id.textView, "")
             remoteViews.setTextViewText(R.id.textView2, "Please enable unrestricted battery usage")
             remoteViews.setTextViewText(R.id.textView3, "")
