@@ -312,17 +312,17 @@ class AtbWidget : AppWidgetProvider() {
     override fun onReceive(context: Context?, intent: Intent?) {
         super.onReceive(context, intent)
 
-        val vibrator = (context ?: return).getSystemService(Vibrator::class.java)
-
-        val vibrationAttributes = VibrationAttributes.Builder()
-            .setUsage(VibrationAttributes.USAGE_PHYSICAL_EMULATION)
-            .setFlags(
-                VibrationAttributes.FLAG_BYPASS_INTERRUPTION_POLICY,
-                VibrationAttributes.USAGE_CLASS_MASK
-            )
-            .build()
-
         if ("BUTTON_CLICK" == intent?.action) {
+            val vibrator = (context ?: return).getSystemService(Vibrator::class.java)
+
+            val vibrationAttributes = VibrationAttributes.Builder()
+                .setUsage(VibrationAttributes.USAGE_PHYSICAL_EMULATION)
+                .setFlags(
+                    VibrationAttributes.FLAG_BYPASS_INTERRUPTION_POLICY,
+                    VibrationAttributes.USAGE_CLASS_MASK
+                )
+                .build()
+
             try {
                 vibrator.vibrate(
                     VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK),
@@ -352,13 +352,14 @@ class AtbWidget : AppWidgetProvider() {
                 context,
                 appWidgetId,
                 updateWidgetIntent,
-                PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT
             )
             views.setOnClickPendingIntent(R.id.button, updateWidgetPendingIntent)
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
     }
-
+}
+    /*
     override fun onAppWidgetOptionsChanged(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -426,6 +427,8 @@ class AtbWidget : AppWidgetProvider() {
         onUpdate(context, appWidgetManager, appWidgetIds)
     }
 }
+
+     */
 
 fun resetTextViews(
     textViewIds: List<Int>,
