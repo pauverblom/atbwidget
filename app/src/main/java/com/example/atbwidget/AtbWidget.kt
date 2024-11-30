@@ -3,11 +3,9 @@ package com.example.atbwidget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Bundle
 import android.os.PowerManager
 import android.os.VibrationAttributes
@@ -66,12 +64,21 @@ data class TimeData(
 
 class AtbWidget : AppWidgetProvider() {
 
+    companion object {
+        const val BUTTON_CLICK = "com.example.BUTTON_CLICK"
+    }
+
     private val okhttpclient: OkHttpClient = OkHttpClient()
 
     private val moshi: Moshi = Moshi.Builder().build()
     val timetableJsonAdapter: JsonAdapter<Timetable> = moshi.adapter(Timetable::class.java)
 
-    private fun updateAtbTransportTimesService(context: Context) {
+    private fun updateAtbTransportTimesService(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+
+
+        val remoteViews = createRemoteViews(context, appWidgetId)
+
+        val atbWidget = ComponentName(context, AtbWidget::class.java)
 
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
 
@@ -99,10 +106,6 @@ class AtbWidget : AppWidgetProvider() {
         val fallBackMaxTime =
             ZonedDateTime.of(9999, 12, 31, 23, 59, 59, 999_999_999, ZoneId.systemDefault())
                 .toString()
-
-        val remoteViews = RemoteViews(context.packageName, R.layout.atb_widget)
-        val appWidgetManager = AppWidgetManager.getInstance(context)
-        val atbWidget = ComponentName(context, AtbWidget::class.java)
 
         val serviceJourneyIdToFindBus3 = "ATB:ServiceJourney:3"
         val serviceJourneyIdToFindBus12 = "ATB:ServiceJourney:12"
@@ -309,33 +312,6 @@ class AtbWidget : AppWidgetProvider() {
         }
     }
 
-    override fun onReceive(context: Context?, intent: Intent?) {
-        super.onReceive(context, intent)
-
-        if ("BUTTON_CLICK" == intent?.action) {
-            val vibrator = (context ?: return).getSystemService(Vibrator::class.java)
-
-            val vibrationAttributes = VibrationAttributes.Builder()
-                .setUsage(VibrationAttributes.USAGE_PHYSICAL_EMULATION)
-                .setFlags(
-                    VibrationAttributes.FLAG_BYPASS_INTERRUPTION_POLICY,
-                    VibrationAttributes.USAGE_CLASS_MASK
-                )
-                .build()
-
-            try {
-                vibrator.vibrate(
-                    VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK),
-                    vibrationAttributes
-                )
-
-                updateAtbTransportTimesService(context)
-            } catch (e: IOException) {
-                throw RuntimeException(e)
-            }
-        }
-    }
-
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -343,46 +319,79 @@ class AtbWidget : AppWidgetProvider() {
     ) {
         // There may be multiple widgets active, so update all of them
         for (appWidgetId in appWidgetIds) {
-
-            val views = RemoteViews(context.packageName, R.layout.atb_widget)
-            val updateWidgetIntent = Intent(context, AtbWidget::class.java).apply {
-                action = "BUTTON_CLICK"
-            }
-            val updateWidgetPendingIntent = PendingIntent.getBroadcast(
-                context,
-                appWidgetId,
-                updateWidgetIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT
-            )
-            views.setOnClickPendingIntent(R.id.button, updateWidgetPendingIntent)
-            appWidgetManager.updateAppWidget(appWidgetId, views)
+            updateWidget(context, appWidgetManager, appWidgetId)
         }
     }
-}
-    /*
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+
+        if (intent.action == BUTTON_CLICK) {
+            val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+
+            if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val vibrator = (context).getSystemService(Vibrator::class.java)
+
+                val vibrationAttributes = VibrationAttributes.Builder()
+                    .setUsage(VibrationAttributes.USAGE_PHYSICAL_EMULATION)
+                    .setFlags(
+                        VibrationAttributes.FLAG_BYPASS_INTERRUPTION_POLICY,
+                        VibrationAttributes.USAGE_CLASS_MASK
+                    )
+                    .build()
+
+                try {
+                    vibrator.vibrate(
+                        VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK),
+                        vibrationAttributes
+                    )
+                    updateAtbTransportTimesService(context, appWidgetManager, appWidgetId)
+                } catch (e: IOException) {
+                    throw RuntimeException(e)
+                }
+            }
+        }
+    }
+
     override fun onAppWidgetOptionsChanged(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
-        newOptions: Bundle
+        newOptions: Bundle?
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        updateWidget(context, appWidgetManager, appWidgetId)
+    }
 
-        val views = RemoteViews(context.packageName, R.layout.atb_widget)
-
-        val updateWidgetIntent = Intent(context, AtbWidget::class.java).apply {
-            action = "BUTTON_CLICK"
-        }
-        val updateWidgetPendingIntent = PendingIntent.getBroadcast(
-            context,
-            appWidgetId,
-            updateWidgetIntent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.button, updateWidgetPendingIntent)
+    private fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+        val views = createRemoteViews(context, appWidgetId)
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
+    private fun createRemoteViews(context: Context, appWidgetId: Int): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.atb_widget)
+
+        // Set up the PendingIntent for the button
+        val updateWidgetIntent = Intent(context, AtbWidget::class.java).apply {
+            action = BUTTON_CLICK
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            appWidgetId,  // Use appWidgetId as unique request code
+            updateWidgetIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Attach the PendingIntent to the button
+        views.setOnClickPendingIntent(R.id.button, pendingIntent)
+
+        return views
+    }
+}
+    /*
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == Intent.ACTION_SCREEN_ON || intent.action == Intent.ACTION_USER_PRESENT) {
@@ -429,6 +438,10 @@ class AtbWidget : AppWidgetProvider() {
 }
 
      */
+
+
+
+
 
 fun resetTextViews(
     textViewIds: List<Int>,
